@@ -1,4 +1,4 @@
-# Git Agent 🤖
+# Git Agent
 
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)](https://nextjs.org/)
 [![Vercel AI SDK](https://img.shields.io/badge/Vercel%20AI%20SDK-latest-black)](https://sdk.vercel.ai/docs)
