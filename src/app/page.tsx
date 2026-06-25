@@ -2,7 +2,7 @@
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, isToolUIPart } from 'ai';
-import { useState, useEffect, useRef, useMemo, memo } from 'react';
+import { useState, useEffect, useRef, useMemo, memo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -60,16 +60,30 @@ const STARTER_PROMPTS = [
 export default function Page() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string>('');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile default closed
   const [mounted, setMounted] = useState(false);
   const [input, setInput] = useState('');
   
+  // PAT Token State
+  const [patToken, setPatToken] = useState<string>('');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [tempToken, setTempToken] = useState('');
+  
+  const patTokenRef = useRef(patToken);
+  useEffect(() => {
+    patTokenRef.current = patToken;
+  }, [patToken]);
+
   const transport = useMemo(() => new DefaultChatTransport({
     api: '/api/chat',
+    headers: () => ({
+      'x-github-token': patTokenRef.current
+    })
   }), []);
 
   const { messages, sendMessage, status, setMessages } = useChat({
     transport,
+    experimental_throttle: 60, // Throttle updates to at most once per 60ms to eliminate UI lag during active streaming
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -80,6 +94,14 @@ export default function Page() {
   // Initialize and load sessions from localStorage on client-side mount
   useEffect(() => {
     setMounted(true);
+    
+    // Load PAT
+    const storedPat = localStorage.getItem('github-agent:pat');
+    if (storedPat) {
+      setPatToken(storedPat);
+      setTempToken(storedPat);
+    }
+    
     const stored = localStorage.getItem('github-agent:sessions');
     if (stored) {
       try {
@@ -104,7 +126,8 @@ export default function Page() {
 
   // Save sessions to localStorage whenever messages or activeSessionId changes (debounced)
   useEffect(() => {
-    if (!mounted || !activeSessionId) return;
+    // Avoid saving to localStorage or updating sessions list while the agent is streaming
+    if (!mounted || !activeSessionId || status === 'streaming') return;
 
     const currentMessagesStr = JSON.stringify(messages);
     if (currentMessagesStr === lastSavedStrRef.current) return;
@@ -143,28 +166,26 @@ export default function Page() {
         localStorage.setItem('github-agent:sessions', JSON.stringify(newSessions));
         return newSessions;
       });
-    }, 500); // 500ms debounce to prevent React update limits during streaming
+    }, 500); // 500ms debounce
 
     return () => clearTimeout(timerId);
-  }, [messages, activeSessionId, mounted]);
+  }, [messages, activeSessionId, mounted, status]);
 
   // Scroll to bottom on messages change
   useEffect(() => {
-    // Only auto-scroll if the user is already near the bottom
-    if (scrollContainerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    const container = scrollContainerRef.current;
+    if (container) {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      // Scroll if the user is already near the bottom, or if we just finished streaming
       const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
       
       if (isNearBottom || status !== 'streaming') {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+        container.scrollTop = container.scrollHeight;
       }
-    } else {
-      // Fallback
-      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
     }
   }, [messages, status]);
 
-  const handleNewChat = () => {
+  const handleNewChat = useCallback(() => {
     const newId = Date.now().toString();
     setActiveSessionId(newId);
     setMessages([]);
@@ -173,9 +194,9 @@ export default function Page() {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  };
+  }, [setMessages]);
 
-  const handleSelectSession = (session: ChatSession) => {
+  const handleSelectSession = useCallback((session: ChatSession) => {
     setActiveSessionId(session.id);
     setMessages(session.messages);
     lastSavedStrRef.current = JSON.stringify(session.messages);
@@ -183,28 +204,30 @@ export default function Page() {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  };
+  }, [setMessages]);
 
-  const handleDeleteSession = (id: string, e: React.MouseEvent) => {
+  const handleDeleteSession = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     
-    const updated = sessions.filter(s => s.id !== id);
-    setSessions(updated);
-    localStorage.setItem('github-agent:sessions', JSON.stringify(updated));
+    setSessions(prev => {
+      const updated = prev.filter(s => s.id !== id);
+      localStorage.setItem('github-agent:sessions', JSON.stringify(updated));
 
-    if (activeSessionId === id) {
-      if (updated.length > 0) {
-        setActiveSessionId(updated[0].id);
-        setMessages(updated[0].messages);
-        lastSavedStrRef.current = JSON.stringify(updated[0].messages);
-      } else {
-        const newId = Date.now().toString();
-        setActiveSessionId(newId);
-        setMessages([]);
-        lastSavedStrRef.current = '[]';
+      if (activeSessionId === id) {
+        if (updated.length > 0) {
+          setActiveSessionId(updated[0].id);
+          setMessages(updated[0].messages);
+          lastSavedStrRef.current = JSON.stringify(updated[0].messages);
+        } else {
+          const newId = Date.now().toString();
+          setActiveSessionId(newId);
+          setMessages([]);
+          lastSavedStrRef.current = '[]';
+        }
       }
-    }
-  };
+      return updated;
+    });
+  }, [activeSessionId, setMessages]);
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -236,6 +259,55 @@ export default function Page() {
     }
   };
 
+  const handleSaveToken = () => {
+    const token = tempToken.trim();
+    if (token) {
+      setPatToken(token);
+      localStorage.setItem('github-agent:pat', token);
+      setIsSettingsOpen(false);
+    }
+  };
+
+  const sessionsList = useMemo(() => {
+    if (sessions.length === 0) {
+      return (
+        <div className="text-center py-8 text-neutral-600 text-xs italic">
+          No sessions saved
+        </div>
+      );
+    }
+    return sessions.map(s => {
+      const isActive = s.id === activeSessionId;
+      return (
+        <div
+          key={s.id}
+          onClick={() => handleSelectSession(s)}
+          className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-155 border ${
+            isActive
+              ? 'bg-neutral-800/50 text-white border-neutral-700/30'
+              : 'border-transparent text-neutral-400 hover:bg-neutral-800/20 hover:text-neutral-200'
+          }`}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <svg className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-indigo-400' : 'text-neutral-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <span className="text-xs truncate font-medium tracking-wide leading-none">{s.title}</span>
+          </div>
+          <button
+            onClick={(e) => handleDeleteSession(s.id, e)}
+            className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-neutral-800 text-neutral-500 hover:text-rose-400 transition-all"
+            title="Delete Chat"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
+      );
+    });
+  }, [sessions, activeSessionId, handleSelectSession, handleDeleteSession]);
+
   if (!mounted) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-[#0b0b0c] text-neutral-400">
@@ -247,13 +319,111 @@ export default function Page() {
     );
   }
 
+  // Token Setup / Missing Screen
+  if (!patToken) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#0d0d0f] text-neutral-200 font-sans p-6">
+        <div className="max-w-md w-full bg-[#131315] border border-neutral-800 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
+          <h1 className="text-2xl font-bold text-white mb-2">Welcome to GitHub Agent</h1>
+          <p className="text-sm text-neutral-400 mb-6 leading-relaxed">
+            To get started, please provide a GitHub Personal Access Token (PAT). This allows the agent to fetch your repositories, issues, and execute tasks on your behalf.
+          </p>
+          
+          <div className="bg-[#0b0b0c] border border-indigo-900/50 p-4 rounded-xl mb-6">
+            <h3 className="text-xs font-semibold text-indigo-400 mb-2 uppercase tracking-wider">How to get a token:</h3>
+            <ol className="list-decimal pl-4 text-xs text-neutral-400 space-y-1.5">
+              <li>Go to <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline">GitHub Developer Settings</a></li>
+              <li>Navigate to: <strong>Personal access tokens &rarr; Fine-grained tokens</strong></li>
+              <li>Click "Generate new token"</li>
+              <li>Give it repo, user, and workflow scopes</li>
+              <li>If you want agent to make changes on your repositories, give some repositories content access with read and write permissions</li>
+              <li>Copy and paste the token below</li>
+            </ol>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-neutral-400 mb-1.5">GitHub PAT Token</label>
+              <input
+                type="password"
+                value={tempToken}
+                onChange={e => setTempToken(e.target.value)}
+                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                className="w-full bg-[#0b0b0c] border border-neutral-700 text-sm text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all"
+              />
+            </div>
+            
+            <button
+              onClick={handleSaveToken}
+              disabled={!tempToken.trim()}
+              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-medium py-3 rounded-xl transition-all shadow-md active:scale-[0.98]"
+            >
+              Save Token & Continue
+            </button>
+            
+            <p className="text-[10px] text-center text-neutral-500 flex items-center justify-center gap-1.5 mt-4">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              Your token is securely stored locally on your device only.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-screen bg-[#0d0d0f] text-neutral-100 font-sans antialiased overflow-hidden">
+      {/* Settings Modal */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-[#131315] border border-neutral-800 w-full max-w-md rounded-2xl p-6 shadow-2xl">
+            <h2 className="text-xl font-bold text-white mb-4">Settings</h2>
+            <div className="mb-6">
+              <label className="block text-xs font-medium text-neutral-400 mb-1.5">Update GitHub PAT Token</label>
+              <input
+                type="password"
+                value={tempToken}
+                onChange={e => setTempToken(e.target.value)}
+                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                className="w-full bg-[#0b0b0c] border border-neutral-700 text-sm text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => { setIsSettingsOpen(false); setTempToken(patToken); }}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-neutral-400 hover:text-white hover:bg-neutral-800 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveToken}
+                className="px-4 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-md"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sidebar Overlay (Mobile) */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/40 z-20 md:hidden backdrop-blur-sm"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <div
         className={`${
-          sidebarOpen ? 'w-64 border-r border-neutral-800/60' : 'w-0'
-        } bg-[#131315] flex flex-col transition-all duration-300 ease-in-out overflow-hidden relative z-20 h-full`}
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        } ${
+          sidebarOpen ? 'w-64' : 'w-0 md:w-64'
+        } absolute md:relative border-r border-neutral-800/60 bg-[#131315] flex flex-col transition-all duration-300 ease-in-out overflow-hidden z-30 h-full shrink-0`}
       >
         {/* Sidebar Header */}
         <div className="p-3.5 flex items-center justify-between border-b border-neutral-800/40">
@@ -273,52 +443,30 @@ export default function Page() {
 
         {/* Sessions list */}
         <div className="flex-1 overflow-y-auto px-2 py-3 space-y-1 scrollbar-thin">
-          {sessions.length === 0 ? (
-            <div className="text-center py-8 text-neutral-600 text-xs italic">
-              No sessions saved
-            </div>
-          ) : (
-            sessions.map(s => {
-              const isActive = s.id === activeSessionId;
-              return (
-                <div
-                  key={s.id}
-                  onClick={() => handleSelectSession(s)}
-                  className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-155 border ${
-                    isActive
-                      ? 'bg-neutral-800/50 text-white border-neutral-700/30'
-                      : 'border-transparent text-neutral-400 hover:bg-neutral-800/20 hover:text-neutral-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <svg className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-indigo-400' : 'text-neutral-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
-                    <span className="text-xs truncate font-medium tracking-wide leading-none">{s.title}</span>
-                  </div>
-                  <button
-                    onClick={(e) => handleDeleteSession(s.id, e)}
-                    className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-neutral-800 text-neutral-500 hover:text-rose-400 transition-all"
-                    title="Delete Chat"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              );
-            })
-          )}
+          {sessionsList}
         </div>
 
-        {/* Sidebar Footer */}
-        <div className="p-3.5 border-t border-neutral-800/40 bg-[#101012]">
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span className="text-[11px] text-neutral-400 font-mono tracking-wide">
-              GitHub Agent Online
-            </span>
-          </div>
+        {/* Sidebar Footer (Settings) */}
+        <div className="p-3 border-t border-neutral-800/40 bg-[#101012]">
+          <button 
+            onClick={() => setIsSettingsOpen(true)}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-neutral-800/60 transition-colors group"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-md bg-neutral-800 border border-neutral-700 flex items-center justify-center text-neutral-400 group-hover:text-indigo-400 transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <span className="text-[12px] font-medium text-neutral-300 group-hover:text-white transition-colors">
+                Settings
+              </span>
+            </div>
+            <svg className="w-3.5 h-3.5 text-neutral-600 group-hover:text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -329,8 +477,16 @@ export default function Page() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-300 hover:text-white transition-colors md:hidden"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
               title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-              className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-300 hover:text-white transition-colors"
+              className="hidden md:block p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-300 hover:text-white transition-colors"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h12M4 18h16" />

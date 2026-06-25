@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gi",
+  title: "GitAgent",
   description: "Your Personal AI GitHub Assistant",
 };
 
