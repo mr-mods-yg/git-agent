@@ -6,6 +6,43 @@ import { useState, useEffect, useRef, useMemo, memo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+const PROVIDERS = [
+  { id: 'deepseek', name: 'DeepSeek', defaultModel: 'deepseek-v4-flash' },
+  { id: 'openai', name: 'OpenAI', defaultModel: 'gpt-4o-mini' },
+  { id: 'anthropic', name: 'Anthropic', defaultModel: 'claude-3-5-sonnet-latest' },
+  { id: 'google', name: 'Google Gemini', defaultModel: 'gemini-2.5-flash' },
+];
+
+const MODELS: Record<string, { id: string; name: string }[]> = {
+  deepseek: [
+    { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
+    { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
+    { id: 'deepseek-chat', name: 'DeepSeek V3 (Chat)' },
+    { id: 'deepseek-reasoner', name: 'DeepSeek R1 (Reasoner)' },
+  ],
+  openai: [
+    { id: 'gpt-5.5-pro', name: 'GPT-5.5 Pro' },
+    { id: 'gpt-5.5', name: 'GPT-5.5' },
+    { id: 'gpt-5', name: 'GPT-5' },
+    { id: 'gpt-5-mini', name: 'GPT-5 mini' },
+    { id: 'gpt-5-nano', name: 'GPT-5 nano' },
+  ],
+  anthropic: [
+    { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
+    { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5' },
+    { id: 'claude-opus-4-8', name: 'Claude Opus 4.8' },
+    { id: 'claude-opus-4-7', name: 'Claude Opus 4.7' },
+    { id: 'claude-opus-4-6', name: 'Claude Opus 4.6' },
+    { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5' },
+  ],
+  google: [
+    { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash' },
+    { id: 'gemini-3-flash', name: 'Gemini 3 Flash' },
+    { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+  ]
+};
+
 // Interfaces
 interface ChatSession {
   id: string;
@@ -68,17 +105,68 @@ export default function Page() {
   const [patToken, setPatToken] = useState<string>('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempToken, setTempToken] = useState('');
-  
-  const patTokenRef = useRef(patToken);
+
+  // AI Model Provider State
+  const [selectedProvider, setSelectedProvider] = useState<string>('deepseek');
+  const [selectedModel, setSelectedModel] = useState<string>('deepseek-v4-flash');
+  const [openaiKey, setOpenaiKey] = useState<string>('');
+  const [anthropicKey, setAnthropicKey] = useState<string>('');
+  const [geminiKey, setGeminiKey] = useState<string>('');
+  const [deepseekKey, setDeepseekKey] = useState<string>('');
+
+  // Settings Temporary State (for Modal and Welcome Screen editing)
+  const [tempProvider, setTempProvider] = useState<string>('deepseek');
+  const [tempModel, setTempModel] = useState<string>('deepseek-v4-flash');
+  const [tempOpenaiKey, setTempOpenaiKey] = useState<string>('');
+  const [tempAnthropicKey, setTempAnthropicKey] = useState<string>('');
+  const [tempGeminiKey, setTempGeminiKey] = useState<string>('');
+  const [tempDeepseekKey, setTempDeepseekKey] = useState<string>('');
+
+  const handleTempProviderChange = (providerId: string) => {
+    setTempProvider(providerId);
+    const defaultModel = PROVIDERS.find(p => p.id === providerId)?.defaultModel || '';
+    setTempModel(defaultModel);
+  };
+
+  const configRef = useRef({
+    patToken,
+    selectedProvider,
+    selectedModel,
+    openaiKey,
+    anthropicKey,
+    geminiKey,
+    deepseekKey
+  });
+
   useEffect(() => {
-    patTokenRef.current = patToken;
-  }, [patToken]);
+    configRef.current = {
+      patToken,
+      selectedProvider,
+      selectedModel,
+      openaiKey,
+      anthropicKey,
+      geminiKey,
+      deepseekKey
+    };
+  }, [patToken, selectedProvider, selectedModel, openaiKey, anthropicKey, geminiKey, deepseekKey]);
 
   const transport = useMemo(() => new DefaultChatTransport({
     api: '/api/chat',
-    headers: () => ({
-      'x-github-token': patTokenRef.current
-    })
+    headers: () => {
+      const cfg = configRef.current;
+      let apiKey = '';
+      if (cfg.selectedProvider === 'openai') apiKey = cfg.openaiKey;
+      else if (cfg.selectedProvider === 'anthropic') apiKey = cfg.anthropicKey;
+      else if (cfg.selectedProvider === 'google') apiKey = cfg.geminiKey;
+      else if (cfg.selectedProvider === 'deepseek') apiKey = cfg.deepseekKey;
+
+      return {
+        'x-github-token': cfg.patToken,
+        'x-ai-provider': cfg.selectedProvider,
+        'x-ai-model': cfg.selectedModel,
+        'x-ai-api-key': apiKey
+      };
+    }
   }), []);
 
   const { messages, sendMessage, status, setMessages } = useChat({
@@ -101,6 +189,32 @@ export default function Page() {
       setPatToken(storedPat);
       setTempToken(storedPat);
     }
+
+    // Load AI Provider & Model
+    const storedProvider = localStorage.getItem('github-agent:provider') || 'deepseek';
+    setSelectedProvider(storedProvider);
+    setTempProvider(storedProvider);
+
+    const storedModel = localStorage.getItem('github-agent:model') || 'deepseek-v4-flash';
+    setSelectedModel(storedModel);
+    setTempModel(storedModel);
+
+    // Load API Keys
+    const storedOpenaiKey = localStorage.getItem('github-agent:key:openai') || '';
+    setOpenaiKey(storedOpenaiKey);
+    setTempOpenaiKey(storedOpenaiKey);
+
+    const storedAnthropicKey = localStorage.getItem('github-agent:key:anthropic') || '';
+    setAnthropicKey(storedAnthropicKey);
+    setTempAnthropicKey(storedAnthropicKey);
+
+    const storedGeminiKey = localStorage.getItem('github-agent:key:gemini') || '';
+    setGeminiKey(storedGeminiKey);
+    setTempGeminiKey(storedGeminiKey);
+
+    const storedDeepseekKey = localStorage.getItem('github-agent:key:deepseek') || '';
+    setDeepseekKey(storedDeepseekKey);
+    setTempDeepseekKey(storedDeepseekKey);
     
     const stored = localStorage.getItem('github-agent:sessions');
     if (stored) {
@@ -259,13 +373,32 @@ export default function Page() {
     }
   };
 
-  const handleSaveToken = () => {
-    const token = tempToken.trim();
-    if (token) {
-      setPatToken(token);
-      localStorage.setItem('github-agent:pat', token);
-      setIsSettingsOpen(false);
-    }
+  const handleSaveInitialSetup = () => {
+    const pat = tempToken.trim();
+    if (!pat) return;
+
+    setPatToken(pat);
+    localStorage.setItem('github-agent:pat', pat);
+
+    setSelectedProvider(tempProvider);
+    localStorage.setItem('github-agent:provider', tempProvider);
+
+    setSelectedModel(tempModel);
+    localStorage.setItem('github-agent:model', tempModel);
+
+    setOpenaiKey(tempOpenaiKey.trim());
+    localStorage.setItem('github-agent:key:openai', tempOpenaiKey.trim());
+
+    setAnthropicKey(tempAnthropicKey.trim());
+    localStorage.setItem('github-agent:key:anthropic', tempAnthropicKey.trim());
+
+    setGeminiKey(tempGeminiKey.trim());
+    localStorage.setItem('github-agent:key:gemini', tempGeminiKey.trim());
+
+    setDeepseekKey(tempDeepseekKey.trim());
+    localStorage.setItem('github-agent:key:deepseek', tempDeepseekKey.trim());
+
+    setIsSettingsOpen(false);
   };
 
   const sessionsList = useMemo(() => {
@@ -322,51 +455,108 @@ export default function Page() {
   // Token Setup / Missing Screen
   if (!patToken) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[#0d0d0f] text-neutral-200 font-sans p-6">
-        <div className="max-w-md w-full bg-[#131315] border border-neutral-800 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
+      <div className="flex h-screen w-screen items-center justify-center bg-[#0d0d0f] text-neutral-200 font-sans p-6 overflow-y-auto">
+        <div className="max-w-lg w-full bg-[#131315] border border-neutral-800 rounded-2xl p-8 shadow-2xl relative overflow-hidden my-8">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
           <h1 className="text-2xl font-bold text-white mb-2">Welcome to GitHub Agent</h1>
           <p className="text-sm text-neutral-400 mb-6 leading-relaxed">
-            To get started, please provide a GitHub Personal Access Token (PAT). This allows the agent to fetch your repositories, issues, and execute tasks on your behalf.
+            Configure your GitHub Personal Access Token (PAT) and select your preferred AI model provider to get started. All credentials are saved purely on your local device.
           </p>
-          
-          <div className="bg-[#0b0b0c] border border-indigo-900/50 p-4 rounded-xl mb-6">
-            <h3 className="text-xs font-semibold text-indigo-400 mb-2 uppercase tracking-wider">How to get a token:</h3>
-            <ol className="list-decimal pl-4 text-xs text-neutral-400 space-y-1.5">
-              <li>Go to <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline">GitHub Developer Settings</a></li>
-              <li>Navigate to: <strong>Personal access tokens &rarr; Fine-grained tokens</strong></li>
-              <li>Click "Generate new token"</li>
-              <li>Give it repo, user, and workflow scopes</li>
-              <li>If you want agent to make changes on your repositories, give some repositories content access with read and write permissions</li>
-              <li>Copy and paste the token below</li>
-            </ol>
-          </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-neutral-400 mb-1.5">GitHub PAT Token</label>
-              <input
-                type="password"
-                value={tempToken}
-                onChange={e => setTempToken(e.target.value)}
-                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                className="w-full bg-[#0b0b0c] border border-neutral-700 text-sm text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all"
-              />
+          <div className="space-y-5">
+            {/* Section 1: GitHub PAT */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400">1. GitHub Credentials</h3>
+              <div className="bg-[#0b0b0c] border border-neutral-800 p-3.5 rounded-xl space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-neutral-400 mb-1">
+                    GitHub PAT Token <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={tempToken}
+                    onChange={e => setTempToken(e.target.value)}
+                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                    className="w-full bg-[#131315] border border-neutral-700 text-xs text-white rounded-lg px-3 py-2.5 focus:outline-none focus:border-indigo-500 transition-all font-mono"
+                  />
+                </div>
+                <div className="text-[10px] text-neutral-500 leading-normal">
+                  Requires <code>repo</code>, <code>user</code>, and <code>workflow</code> scopes. Generate at <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline">GitHub Fine-grained tokens</a>.
+                </div>
+              </div>
             </div>
-            
+
+            {/* Section 2: AI Model Provider */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400">2. AI Model Configuration</h3>
+              <div className="bg-[#0b0b0c] border border-neutral-800 p-3.5 rounded-xl space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-400 mb-1">AI Provider</label>
+                    <select
+                      value={tempProvider}
+                      onChange={e => handleTempProviderChange(e.target.value)}
+                      className="w-full bg-[#131315] border border-neutral-700 text-xs text-white rounded-lg px-3 py-2.5 focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                    >
+                      {PROVIDERS.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-400 mb-1">Model</label>
+                    <select
+                      value={tempModel}
+                      onChange={e => setTempModel(e.target.value)}
+                      className="w-full bg-[#131315] border border-neutral-700 text-xs text-white rounded-lg px-3 py-2.5 focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                    >
+                      {MODELS[tempProvider]?.map(m => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-neutral-400 mb-1">
+                    {PROVIDERS.find(p => p.id === tempProvider)?.name} API Key 
+                    <span className="text-[10px] text-neutral-500 ml-1.5 font-normal">(Optional, can also be changed later in settings)</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={
+                      tempProvider === 'openai' ? tempOpenaiKey :
+                      tempProvider === 'anthropic' ? tempAnthropicKey :
+                      tempProvider === 'google' ? tempGeminiKey :
+                      tempDeepseekKey
+                    }
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (tempProvider === 'openai') setTempOpenaiKey(val);
+                      else if (tempProvider === 'anthropic') setTempAnthropicKey(val);
+                      else if (tempProvider === 'google') setTempGeminiKey(val);
+                      else setTempDeepseekKey(val);
+                    }}
+                    placeholder={`Paste ${PROVIDERS.find(p => p.id === tempProvider)?.name} key here`}
+                    className="w-full bg-[#131315] border border-neutral-700 text-xs text-white rounded-lg px-3 py-2.5 focus:outline-none focus:border-indigo-500 transition-all font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
             <button
-              onClick={handleSaveToken}
+              onClick={handleSaveInitialSetup}
               disabled={!tempToken.trim()}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-medium py-3 rounded-xl transition-all shadow-md active:scale-[0.98]"
+              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-medium py-3 rounded-xl transition-all shadow-md active:scale-[0.98] text-sm"
             >
-              Save Token & Continue
+              Save Credentials & Get Started
             </button>
             
-            <p className="text-[10px] text-center text-neutral-500 flex items-center justify-center gap-1.5 mt-4">
+            <p className="text-[10px] text-center text-neutral-500 flex items-center justify-center gap-1.5">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
-              Your token is securely stored locally on your device only.
+              AI keys & GitHub PAT tokens are stored exclusively in your browser storage.
             </p>
           </div>
         </div>
@@ -379,27 +569,94 @@ export default function Page() {
       {/* Settings Modal */}
       {isSettingsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-[#131315] border border-neutral-800 w-full max-w-md rounded-2xl p-6 shadow-2xl">
-            <h2 className="text-xl font-bold text-white mb-4">Settings</h2>
-            <div className="mb-6">
-              <label className="block text-xs font-medium text-neutral-400 mb-1.5">Update GitHub PAT Token</label>
-              <input
-                type="password"
-                value={tempToken}
-                onChange={e => setTempToken(e.target.value)}
-                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                className="w-full bg-[#0b0b0c] border border-neutral-700 text-sm text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
-              />
+          <div className="bg-[#131315] border border-neutral-800 w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4">
+            <h2 className="text-xl font-bold text-white">Settings</h2>
+            
+            <div className="space-y-4">
+              {/* GitHub PAT */}
+              <div>
+                <label className="block text-xs font-medium text-neutral-400 mb-1.5">GitHub PAT Token</label>
+                <input
+                  type="password"
+                  value={tempToken}
+                  onChange={e => setTempToken(e.target.value)}
+                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                  className="w-full bg-[#0b0b0c] border border-neutral-700 text-xs text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 font-mono"
+                />
+              </div>
+
+              {/* Provider Selection */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-neutral-400 mb-1.5">AI Provider</label>
+                  <select
+                    value={tempProvider}
+                    onChange={e => handleTempProviderChange(e.target.value)}
+                    className="w-full bg-[#0b0b0c] border border-neutral-700 text-xs text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    {PROVIDERS.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-neutral-400 mb-1.5">AI Model</label>
+                  <select
+                    value={tempModel}
+                    onChange={e => setTempModel(e.target.value)}
+                    className="w-full bg-[#0b0b0c] border border-neutral-700 text-xs text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    {MODELS[tempProvider]?.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* API Key */}
+              <div>
+                <label className="block text-xs font-medium text-neutral-400 mb-1.5">
+                  {PROVIDERS.find(p => p.id === tempProvider)?.name} API Key
+                </label>
+                <input
+                  type="password"
+                  value={
+                    tempProvider === 'openai' ? tempOpenaiKey :
+                    tempProvider === 'anthropic' ? tempAnthropicKey :
+                    tempProvider === 'google' ? tempGeminiKey :
+                    tempDeepseekKey
+                  }
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (tempProvider === 'openai') setTempOpenaiKey(val);
+                    else if (tempProvider === 'anthropic') setTempAnthropicKey(val);
+                    else if (tempProvider === 'google') setTempGeminiKey(val);
+                    else setTempDeepseekKey(val);
+                  }}
+                  placeholder={`Paste key here`}
+                  className="w-full bg-[#0b0b0c] border border-neutral-700 text-xs text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 font-mono"
+                />
+              </div>
             </div>
-            <div className="flex justify-end gap-3">
+
+            <div className="flex justify-end gap-3 pt-2">
               <button 
-                onClick={() => { setIsSettingsOpen(false); setTempToken(patToken); }}
+                onClick={() => {
+                  setIsSettingsOpen(false);
+                  setTempToken(patToken);
+                  setTempProvider(selectedProvider);
+                  setTempModel(selectedModel);
+                  setTempOpenaiKey(openaiKey);
+                  setTempAnthropicKey(anthropicKey);
+                  setTempGeminiKey(geminiKey);
+                  setTempDeepseekKey(deepseekKey);
+                }}
                 className="px-4 py-2 rounded-xl text-sm font-medium text-neutral-400 hover:text-white hover:bg-neutral-800 transition-all"
               >
                 Cancel
               </button>
               <button
-                onClick={handleSaveToken}
+                onClick={handleSaveInitialSetup}
                 className="px-4 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-md"
               >
                 Save
@@ -449,7 +706,16 @@ export default function Page() {
         {/* Sidebar Footer (Settings) */}
         <div className="p-3 border-t border-neutral-800/40 bg-[#101012]">
           <button 
-            onClick={() => setIsSettingsOpen(true)}
+            onClick={() => {
+              setTempToken(patToken);
+              setTempProvider(selectedProvider);
+              setTempModel(selectedModel);
+              setTempOpenaiKey(openaiKey);
+              setTempAnthropicKey(anthropicKey);
+              setTempGeminiKey(geminiKey);
+              setTempDeepseekKey(deepseekKey);
+              setIsSettingsOpen(true);
+            }}
             className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-neutral-800/60 transition-colors group"
           >
             <div className="flex items-center gap-2.5">
@@ -495,7 +761,7 @@ export default function Page() {
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold tracking-wide text-neutral-200">GitHub Agent</span>
               <span className="text-[10px] font-mono bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/20">
-                deepseek-v4
+                {selectedModel}
               </span>
             </div>
           </div>

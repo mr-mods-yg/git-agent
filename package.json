@@ -9,8 +9,11 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.86",
     "@ai-sdk/deepseek": "^2.0.39",
+    "@ai-sdk/google": "^3.0.83",
     "@ai-sdk/mcp": "^1.0.52",
+    "@ai-sdk/openai": "^3.0.74",
     "@ai-sdk/react": "^3.0.211",
     "@octokit/rest": "^22.0.1",
     "ai": "^6.0.209",

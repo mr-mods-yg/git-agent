@@ -14,5 +14,5 @@ function required(name: string): string {
 export const config = {
   port: Number(process.env.PORT ?? 3000),
   githubToken: process.env.GITHUB_TOKEN || "",
-  deepseekAPIKey: required("DEEPSEEK_API_KEY")
+  deepseekAPIKey: process.env.DEEPSEEK_API_KEY || ""
 } as const;
