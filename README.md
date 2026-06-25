@@ -9,29 +9,30 @@
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 - **Dynamic AI Provider Selector**: Connect using state-of-the-art models from leading AI providers:
   - **DeepSeek**: DeepSeek V4 Pro, DeepSeek V4 Flash, DeepSeek V3 (Chat), DeepSeek R1 (Reasoner).
   - **OpenAI**: GPT-5.5 Pro, GPT-5.5, GPT-5, GPT-5 mini, GPT-5 nano, GPT-4o, GPT-4o mini, o1-mini.
   - **Anthropic**: Claude Sonnet 4.6, Claude Sonnet 4.5, Claude Opus 4.8, Claude Opus 4.7, Claude Opus 4.6, Claude Haiku 4.5.
   - **Google Gemini**: Gemini 3.5 Flash, Gemini 3 Flash, Gemini 3.1 Pro Preview, Gemini 2.5 Pro.
-- **Client-Side / Local Credentials**: 🔒 Your GitHub Personal Access Token (PAT) and provider API keys are stored exclusively on your device (`localStorage`). The backend receives them temporarily in request headers to execute the agent calls on-the-fly and **never persists them**.
-- **Silky Smooth Streaming**: ⚡ AI text updates are throttled at 60ms to prevent main-thread UI lag and browser freeze during fast generation, ensuring a buttery-smooth UX.
-- **Mobile-Responsive UI**: 📱 Full mobile-friendly sidebar overlay with backdrop-blur styling and a premium minimalist aesthetic.
-- **Persistent Chat Sessions**: 💾 Create, rename, select, or delete multiple chat histories seamlessly. Sessions are safely cached locally in your browser.
+- **Client-Side / Local Credentials**: Your GitHub Personal Access Token (PAT) and provider API keys are stored exclusively on your device (`localStorage`). The backend receives them temporarily in request headers to execute the agent calls on-the-fly and never persists them.
+- **Silky Smooth Streaming**: AI text updates are throttled at 60ms to prevent main-thread UI lag and browser freeze during fast generation, ensuring a smooth UX.
+- **Mobile-Responsive UI**: Full mobile-friendly sidebar overlay with backdrop-blur styling and a premium minimalist aesthetic.
+- **Persistent Chat Sessions**: Create, rename, select, or delete multiple chat histories seamlessly. Sessions are safely cached locally in your browser.
 
 ---
 
-## 🚀 Onboarding & Credentials Setup
+## Onboarding & Credentials Setup
 
 To run Git Agent, you will need two things:
 
 ### 1. GitHub Personal Access Token (PAT)
    - Go to [GitHub Developer Settings](https://github.com/settings/personal-access-tokens) &rarr; **Personal access tokens** &rarr; **Fine-grained tokens**.
    - Generate a new token with:
-     - `repositories` (Read and write repository content)
-     - `permissions` (use content permission with read or write access to give the agent to write changes and push commits.)
+     - `repo` (Read and write repository content)
+     - `user` (Read user details)
+     - `workflow` (Manage GitHub Actions)
    - Paste this token on the initial Git Agent welcome screen.
 
 ### 2. AI Provider API Key
@@ -40,7 +41,7 @@ To run Git Agent, you will need two things:
 
 ---
 
-## 💻 Local Development
+## Local Development
 
 ### 1. Clone the repository and install dependencies
 ```bash
@@ -66,7 +67,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to interact 
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
 - **AI Streaming**: [Vercel AI SDK](https://sdk.vercel.ai/docs) (`ai`, `@ai-sdk/react`)
@@ -77,12 +78,12 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to interact 
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are always welcome! Feel free to open an issue or submit a Pull Request if you'd like to add new features, support more models, or improve the UI.
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License.
