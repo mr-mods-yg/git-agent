@@ -481,7 +481,7 @@ export default function Page() {
                   />
                 </div>
                 <div className="text-[10px] text-neutral-500 leading-normal">
-                  Requires <code>repo</code>, <code>user</code>, and <code>workflow</code> scopes. Generate at <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline">GitHub Fine-grained tokens</a>.
+                  Requires selecting repositories and <code>content</code> permission with read and write permissions for write access to that repository. Generate at <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline">GitHub Fine-grained tokens</a>.
                 </div>
               </div>
             </div>
@@ -774,7 +774,6 @@ export default function Page() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
             <span className='hidden md:block'>New Chat</span>
-            <span className='flex justify-center items-center md:hidden'><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></span>
           </button>
         </header>
 
