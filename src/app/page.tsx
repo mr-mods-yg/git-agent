@@ -346,6 +346,17 @@ export default function Page() {
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (input.trim() && status === 'ready') {
+      let apiKey = '';
+      if (selectedProvider === 'openai') apiKey = openaiKey;
+      else if (selectedProvider === 'anthropic') apiKey = anthropicKey;
+      else if (selectedProvider === 'google') apiKey = geminiKey;
+      else if (selectedProvider === 'deepseek') apiKey = deepseekKey;
+
+      if (!apiKey) {
+        alert(`API key for ${selectedProvider} is not set. Please configure it in Settings.`);
+        return;
+      }
+
       sendMessage({ text: input });
       setInput('');
       if (textareaRef.current) {
@@ -369,6 +380,17 @@ export default function Page() {
 
   const handleStarterPrompt = (promptText: string) => {
     if (status === 'ready') {
+      let apiKey = '';
+      if (selectedProvider === 'openai') apiKey = openaiKey;
+      else if (selectedProvider === 'anthropic') apiKey = anthropicKey;
+      else if (selectedProvider === 'google') apiKey = geminiKey;
+      else if (selectedProvider === 'deepseek') apiKey = deepseekKey;
+
+      if (!apiKey) {
+        alert(`API key for ${selectedProvider} is not set. Please configure it in Settings.`);
+        throw new Error(`API key for ${selectedProvider} is not set.`);
+      }
+
       sendMessage({ text: promptText });
     }
   };
