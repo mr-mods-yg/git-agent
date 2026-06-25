@@ -458,7 +458,7 @@ export default function Page() {
       <div className="flex h-screen w-screen items-center justify-center bg-[#0d0d0f] text-neutral-200 font-sans p-6 overflow-y-auto">
         <div className="max-w-lg w-full bg-[#131315] border border-neutral-800 rounded-2xl p-8 shadow-2xl relative overflow-hidden my-8">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
-          <h1 className="text-2xl font-bold text-white mb-2">Welcome to GitHub Agent</h1>
+          <h1 className="text-2xl font-bold text-white mb-2">Welcome to Git Agent</h1>
           <p className="text-sm text-neutral-400 mb-6 leading-relaxed">
             Configure your GitHub Personal Access Token (PAT) and select your preferred AI model provider to get started. All credentials are saved purely on your local device.
           </p>
@@ -759,7 +759,7 @@ export default function Page() {
               </svg>
             </button>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold tracking-wide text-neutral-200">GitHub Agent</span>
+              <span className="text-sm font-semibold tracking-wide text-neutral-200">Git Agent</span>
               <span className="text-[10px] font-mono bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/20">
                 {selectedModel}
               </span>
@@ -773,7 +773,8 @@ export default function Page() {
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
-            <span>New Chat</span>
+            <span className='hidden md:block'>New Chat</span>
+            <span className='flex justify-center items-center md:hidden'><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></span>
           </button>
         </header>
 
@@ -895,7 +896,7 @@ export default function Page() {
                 onKeyDown={handleKeyDown}
                 rows={1}
                 disabled={status !== 'ready'}
-                placeholder="Ask GitHub Agent..."
+                placeholder="Ask Git Agent..."
                 className="w-full rounded-2xl bg-[#131315] border border-neutral-800/70 focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/10 focus:outline-none pl-4 pr-12 py-3.5 text-[13.5px] text-neutral-100 placeholder-neutral-500 resize-none max-h-48 overflow-y-auto block shadow-lg leading-normal"
                 style={{ height: 'auto' }}
               />
@@ -916,7 +917,7 @@ export default function Page() {
             </form>
             
             <div className="text-center mt-2.5 text-[10px] text-neutral-500 tracking-wide font-medium">
-              GitHub Agent can fetch repositories, issues, and execute tools to assist you.
+              Git Agent can fetch repositories, issues, and execute tools to assist you.
             </div>
           </div>
         </div>
