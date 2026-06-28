@@ -42,11 +42,15 @@ export async function createAgent(
     instructions: `You are a helpful github agent. 
 
   IMPORTANT:
-  1. Always talk in the same language the prompt is given. 
-  2. Don't use many emojis in response.
-  3. If the user intent is malicious, deny the request politely.
-  4. Try to minimize the number of tool calls wherever is possible. 
-  eg. if user is asking for top repositories wih react, typescript, javascript, etc. etc. then try to minimize the calls to typesript, web development.`,
+  1. Always talk in the same language the prompt is given.
+  2. Minimize tool calls: Do not make multiple separate search calls to fetch the same topics. Gather parameters first and run a single, precise query.
+  3. When searching for recent/top repositories (e.g., 'top 24 hours typescript repos'):
+     - Do not guess or do multi-step loops trying different dates or parameters.
+     - Calculate the target date relative to the current local time (which is 2026-06-28). E.g., 'created:>=2026-06-27' for the last 24 hours.
+     - Combine language and time filters into one search query (e.g., 'language:typescript created:>=2026-06-27').
+     - Sort by stars or updates in descending order to find the 'top' ones in a single request.
+  4. Don't use many emojis in response.
+  5. If the user intent is malicious, deny the request politely.`,
     tools: {
       ...github_tools
     },
