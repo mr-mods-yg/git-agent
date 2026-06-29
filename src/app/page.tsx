@@ -187,7 +187,7 @@ export default function Page() {
 
   const { messages, sendMessage, status, setMessages } = useChat({
     transport,
-    experimental_throttle: 120, // Throttle updates to at most once per 120ms to eliminate UI lag during active streaming
+    experimental_throttle: 200, // Throttle updates to reduce re-renders during heavy tool-input streaming (e.g. create_or_update_file)
   });
 
   const lastMessageIsAssistant = messages.length > 0 && messages[messages.length - 1].role === 'assistant';
@@ -1379,18 +1379,44 @@ function ToolInvocation({ part }: { part: any }) {
   const toolName = part.toolName;
   const state = part.state;
 
-  let title = `Running tool: ${toolName}`;
-  let statusColor = "text-amber-400 bg-amber-500/10 border-amber-500/20";
-  let showLoader = true;
+  // Determine display properties based on tool lifecycle state:
+  // input-streaming → LLM is still generating the tool arguments (token by token)
+  // input-available  → Arguments are ready, tool is executing
+  // output-available → Tool has finished and returned a result
+  let title: string;
+  let statusColor: string;
+  let icon: React.ReactNode;
 
   if (state === 'output-available') {
-    title = `Executed tool: ${toolName}`;
+    title = `Executed: ${toolName}`;
     statusColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
-    showLoader = false;
-  } else if (state === 'input-available') {
-    title = `Calling tool: ${toolName}...`;
+    icon = (
+      <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+      </svg>
+    );
+  } else if (state === 'input-streaming') {
+    // Tool input is still being streamed — show a subtle pulsing indicator, not a full spinner,
+    // so the UI doesn't feel stuck during large payloads (e.g. create_or_update_file content)
+    title = `Preparing: ${toolName}...`;
+    statusColor = "text-neutral-400 bg-neutral-500/10 border-neutral-500/20";
+    icon = (
+      <span className="flex gap-[3px] items-center">
+        <span className="w-1 h-1 rounded-full bg-neutral-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+        <span className="w-1 h-1 rounded-full bg-neutral-400 animate-bounce" style={{ animationDelay: '120ms' }} />
+        <span className="w-1 h-1 rounded-full bg-neutral-400 animate-bounce" style={{ animationDelay: '240ms' }} />
+      </span>
+    );
+  } else {
+    // input-available — arguments ready, executing
+    title = `Calling: ${toolName}...`;
     statusColor = "text-indigo-400 bg-indigo-500/10 border-indigo-500/20";
-    showLoader = true;
+    icon = (
+      <svg className="animate-spin h-3.5 w-3.5 text-indigo-400" viewBox="0 0 24 24" fill="none">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+      </svg>
+    );
   }
 
   return (
@@ -1400,16 +1426,7 @@ function ToolInvocation({ part }: { part: any }) {
         className="flex items-center justify-between px-3.5 py-2.5 cursor-pointer hover:bg-neutral-800/30 transition-colors"
       >
         <div className="flex items-center gap-2.5">
-          {showLoader ? (
-            <svg className="animate-spin h-3.5 w-3.5 text-indigo-400" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-          ) : (
-            <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-          )}
+          {icon}
           <span className="text-xs font-mono font-medium text-neutral-300">{title}</span>
         </div>
         <div className="flex items-center gap-2">
@@ -1430,13 +1447,17 @@ function ToolInvocation({ part }: { part: any }) {
 
       {!collapsed && (
         <div className="px-4 pb-4 pt-2 border-t border-neutral-800/60 bg-[#0b0b0c] font-mono text-[10.5px] space-y-3">
-          {part.input && (
+          {/* Only show arguments panel once streaming is done to avoid jank from rapid partial-JSON updates */}
+          {state !== 'input-streaming' && part.input && (
             <div>
               <div className="text-[9.5px] text-neutral-500 font-semibold mb-1 uppercase tracking-wider">Arguments</div>
               <pre className="overflow-x-auto p-2.5 bg-neutral-900/80 rounded-lg border border-neutral-800 text-neutral-300 max-h-36 scrollbar-thin">
                 {JSON.stringify(part.input, null, 2)}
               </pre>
             </div>
+          )}
+          {state === 'input-streaming' && (
+            <div className="text-[10px] text-neutral-500 italic py-1">Generating arguments...</div>
           )}
           {state === 'output-available' && part.output && (
             <div>
