@@ -107,9 +107,15 @@ const STARTER_PROMPTS = [
 export default function Page() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string>('');
-  const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile default closed
+  const [sidebarOpen, setSidebarOpen] = useState(true); // Default open on desktop
   const [mounted, setMounted] = useState(false);
   const [input, setInput] = useState('');
+  const [settingsTab, setSettingsTab] = useState<'github' | 'ai'>('github');
+  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
+
+  const toggleKeyVisibility = (keyName: string) => {
+    setShowKeys(prev => ({ ...prev, [keyName]: !prev[keyName] }));
+  };
   
   // PAT Token State
   const [patToken, setPatToken] = useState<string>('');
@@ -192,6 +198,9 @@ export default function Page() {
   // Initialize and load sessions from localStorage on client-side mount
   useEffect(() => {
     setMounted(true);
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
     
     // Load PAT
     const storedPat = localStorage.getItem('github-agent:pat');
@@ -499,27 +508,41 @@ export default function Page() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-neutral-400 mb-1">AI Provider</label>
-                    <select
-                      value={tempProvider}
-                      onChange={e => handleTempProviderChange(e.target.value)}
-                      className="w-full bg-[#131315] border border-neutral-700 text-xs text-white rounded-lg px-3 py-2.5 focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
-                    >
-                      {PROVIDERS.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={tempProvider}
+                        onChange={e => handleTempProviderChange(e.target.value)}
+                        className="w-full bg-[#131315] border border-neutral-700 text-xs text-white rounded-lg pl-3 pr-10 py-2.5 focus:outline-none focus:border-indigo-500 transition-all cursor-pointer appearance-none"
+                      >
+                        {PROVIDERS.map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-neutral-400 mb-1">Model</label>
-                    <select
-                      value={tempModel}
-                      onChange={e => setTempModel(e.target.value)}
-                      className="w-full bg-[#131315] border border-neutral-700 text-xs text-white rounded-lg px-3 py-2.5 focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
-                    >
-                      {MODELS[tempProvider]?.map(m => (
-                        <option key={m.id} value={m.id}>{m.name}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={tempModel}
+                        onChange={e => setTempModel(e.target.value)}
+                        className="w-full bg-[#131315] border border-neutral-700 text-xs text-white rounded-lg pl-3 pr-10 py-2.5 focus:outline-none focus:border-indigo-500 transition-all cursor-pointer appearance-none"
+                      >
+                        {MODELS[tempProvider]?.map(m => (
+                          <option key={m.id} value={m.id}>{m.name}</option>
+                        ))}
+                      </select>
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -574,99 +597,366 @@ export default function Page() {
     <div className="flex h-screen w-screen bg-[#0d0d0f] text-neutral-100 font-sans antialiased overflow-hidden">
       {/* Settings Modal */}
       {isSettingsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-[#131315] border border-neutral-800 w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4">
-            <h2 className="text-xl font-bold text-white">Settings</h2>
-            
-            <div className="space-y-4">
-              {/* GitHub PAT */}
-              <div>
-                <label className="block text-xs font-medium text-neutral-400 mb-1.5">GitHub PAT Token</label>
-                <input
-                  type="password"
-                  value={tempToken}
-                  onChange={e => setTempToken(e.target.value)}
-                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                  className="w-full bg-[#0b0b0c] border border-neutral-700 text-xs text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 font-mono"
-                />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 transition-all duration-300">
+          <div className="bg-[#121214]/95 border border-neutral-800/80 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col md:flex-row h-[550px] overflow-hidden relative group">
+            {/* Left Tabs Sidebar */}
+            <div className="w-full md:w-52 bg-[#0c0c0e]/80 border-b md:border-b-0 md:border-r border-neutral-800/60 p-4 flex md:flex-col gap-1.5 flex-shrink-0 overflow-x-auto md:overflow-x-visible scrollbar-none z-10">
+              <div className="hidden md:block mb-4 px-2">
+                <h3 className="text-sm font-bold text-white tracking-wide">Settings</h3>
+                <p className="text-[10px] text-neutral-500 mt-0.5">Manage credentials & keys</p>
               </div>
 
-              {/* Provider Selection */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-neutral-400 mb-1.5">AI Provider</label>
-                  <select
-                    value={tempProvider}
-                    onChange={e => handleTempProviderChange(e.target.value)}
-                    className="w-full bg-[#0b0b0c] border border-neutral-700 text-xs text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 cursor-pointer"
-                  >
-                    {PROVIDERS.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-neutral-400 mb-1.5">AI Model</label>
-                  <select
-                    value={tempModel}
-                    onChange={e => setTempModel(e.target.value)}
-                    className="w-full bg-[#0b0b0c] border border-neutral-700 text-xs text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 cursor-pointer"
-                  >
-                    {MODELS[tempProvider]?.map(m => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <button
+                onClick={() => setSettingsTab('github')}
+                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all w-full text-left whitespace-nowrap ${
+                  settingsTab === 'github'
+                    ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/25'
+                    : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40 border border-transparent'
+                }`}
+              >
+                <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                  <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482C19.138 20.193 22 16.44 22 12.017 22 6.484 17.522 2 12 2z" />
+                </svg>
+                <span>GitHub Config</span>
+              </button>
 
-              {/* API Key */}
-              <div>
-                <label className="block text-xs font-medium text-neutral-400 mb-1.5">
-                  {PROVIDERS.find(p => p.id === tempProvider)?.name} API Key
-                </label>
-                <input
-                  type="password"
-                  value={
-                    tempProvider === 'openai' ? tempOpenaiKey :
-                    tempProvider === 'anthropic' ? tempAnthropicKey :
-                    tempProvider === 'google' ? tempGeminiKey :
-                    tempDeepseekKey
-                  }
-                  onChange={e => {
-                    const val = e.target.value;
-                    if (tempProvider === 'openai') setTempOpenaiKey(val);
-                    else if (tempProvider === 'anthropic') setTempAnthropicKey(val);
-                    else if (tempProvider === 'google') setTempGeminiKey(val);
-                    else setTempDeepseekKey(val);
-                  }}
-                  placeholder={`Paste key here`}
-                  className="w-full bg-[#0b0b0c] border border-neutral-700 text-xs text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 font-mono"
-                />
-              </div>
+              <button
+                onClick={() => setSettingsTab('ai')}
+                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all w-full text-left whitespace-nowrap ${
+                  settingsTab === 'ai'
+                    ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/25'
+                    : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40 border border-transparent'
+                }`}
+              >
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                <span>AI Providers</span>
+              </button>
             </div>
 
-            <div className="flex justify-end gap-3 pt-2">
-              <button 
-                onClick={() => {
-                  setIsSettingsOpen(false);
-                  setTempToken(patToken);
-                  setTempProvider(selectedProvider);
-                  setTempModel(selectedModel);
-                  setTempOpenaiKey(openaiKey);
-                  setTempAnthropicKey(anthropicKey);
-                  setTempGeminiKey(geminiKey);
-                  setTempDeepseekKey(deepseekKey);
-                }}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-neutral-400 hover:text-white hover:bg-neutral-800 transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveInitialSetup}
-                className="px-4 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-md"
-              >
-                Save
-              </button>
+            {/* Right Pane */}
+            <div className="flex-1 flex flex-col min-w-0 bg-[#121214] z-10">
+              <div className="flex-1 p-6 overflow-y-auto space-y-5 scrollbar-thin">
+                <div className={settingsTab === 'github' ? 'space-y-4' : 'hidden'}>
+                    <div>
+                      <h4 className="text-base font-bold text-white">GitHub Integration</h4>
+                      <p className="text-xs text-neutral-400 mt-0.5">Configure your fine-grained or classic Personal Access Token (PAT).</p>
+                    </div>
+
+                    <div className="bg-[#0b0b0c] border border-neutral-800/80 rounded-xl p-4.5 space-y-4">
+                      <div className="space-y-2">
+                        <label className="block text-xs font-semibold text-neutral-300">
+                          GitHub PAT Token <span className="text-rose-400">*</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showKeys['pat'] ? 'text' : 'password'}
+                            value={tempToken}
+                            onChange={e => setTempToken(e.target.value)}
+                            placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                            className="w-full bg-[#131315] border border-neutral-700/80 hover:border-neutral-600 focus:border-indigo-500 text-xs text-white rounded-lg pl-3 pr-10 py-2.5 focus:outline-none transition-all font-mono shadow-inner"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleKeyVisibility('pat')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-500 hover:text-neutral-300 transition-colors"
+                          >
+                            {showKeys['pat'] ? (
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {tempToken.trim() ? (
+                        <div className="flex items-center gap-2 text-[11px] text-emerald-400 bg-emerald-500/5 border border-emerald-500/15 px-3 py-2 rounded-lg">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                          Token configured and ready.
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-[11px] text-amber-400 bg-amber-500/5 border border-amber-500/15 px-3 py-2 rounded-lg">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                          No token entered. Token is required to interact with repos.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-[11px] text-neutral-400 bg-neutral-900/30 border border-neutral-800/60 p-4 rounded-xl leading-relaxed space-y-2">
+                      <div className="font-semibold text-neutral-300 flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Token Permissions Checklist:
+                      </div>
+                      <ul className="list-disc list-inside space-y-1 pl-1 text-neutral-400">
+                        <li>Make sure to select the repositories the agent will operate on.</li>
+                        <li>Grant <strong>Contents</strong> permission (read & write) to allow editing.</li>
+                        <li>Grant <strong>Metadata</strong> permission (read-only) for repo metadata.</li>
+                      </ul>
+                      <div className="pt-2 border-t border-neutral-800/40">
+                        Generate tokens at <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline inline-flex items-center gap-0.5">GitHub Developer Settings <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>.
+                      </div>
+                    </div>
+                </div>
+
+                <div className={settingsTab === 'ai' ? 'space-y-4' : 'hidden'}>
+                    <div>
+                      <h4 className="text-base font-bold text-white">AI Providers</h4>
+                      <p className="text-xs text-neutral-400 mt-0.5">Set your active AI model and manage API keys for all providers.</p>
+                    </div>
+
+                    {/* Selector Card */}
+                    <div className="bg-[#0b0b0c] border border-neutral-800/80 rounded-xl p-4.5 space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label className="block text-xs font-semibold text-neutral-300">Active AI Provider</label>
+                          <div className="relative">
+                            <select
+                              value={tempProvider}
+                              onChange={e => handleTempProviderChange(e.target.value)}
+                              className="w-full bg-[#131315] border border-neutral-700/80 text-xs text-white rounded-lg pl-3 pr-10 py-2.5 focus:outline-none focus:border-indigo-500 cursor-pointer hover:border-neutral-600 transition-all font-medium appearance-none"
+                            >
+                              {PROVIDERS.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                              ))}
+                            </select>
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="block text-xs font-semibold text-neutral-300">Default Model</label>
+                          <div className="relative">
+                            <select
+                              value={tempModel}
+                              onChange={e => setTempModel(e.target.value)}
+                              className="w-full bg-[#131315] border border-neutral-700/80 text-xs text-white rounded-lg pl-3 pr-10 py-2.5 focus:outline-none focus:border-indigo-500 cursor-pointer hover:border-neutral-600 transition-all font-medium font-mono appearance-none"
+                            >
+                              {MODELS[tempProvider]?.map(m => (
+                                <option key={m.id} value={m.id}>{m.name}</option>
+                              ))}
+                            </select>
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* API Keys Configuration Card */}
+                    <div className="bg-[#0b0b0c] border border-neutral-800/80 rounded-xl p-4.5 space-y-4">
+                      <div className="border-b border-neutral-800/60 pb-2">
+                        <h5 className="text-xs font-bold uppercase tracking-wider text-neutral-400">API Keys</h5>
+                      </div>
+
+                      <div className="space-y-3.5">
+                        {/* OpenAI Key */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-neutral-300 flex items-center gap-1.5">
+                              OpenAI API Key
+                              {tempProvider === 'openai' && (
+                                <span className="text-[9px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-full border border-indigo-500/20 font-bold uppercase tracking-wide">Active</span>
+                              )}
+                            </span>
+                            <span className="text-[10px] text-neutral-500 flex items-center gap-1">
+                              <span className={`w-1.5 h-1.5 rounded-full ${tempOpenaiKey.trim() ? 'bg-emerald-500' : 'bg-neutral-600'}`}></span>
+                              {tempOpenaiKey.trim() ? 'Configured' : 'Not configured'}
+                            </span>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type={showKeys['openai'] ? 'text' : 'password'}
+                              value={tempOpenaiKey}
+                              onChange={e => setTempOpenaiKey(e.target.value)}
+                              placeholder="sk-or-xxxxxxxxxxxxxxxxxxxx"
+                              className="w-full bg-[#131315] border border-neutral-700/80 focus:border-indigo-500 text-xs text-white rounded-lg pl-3 pr-10 py-2 focus:outline-none transition-all font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => toggleKeyVisibility('openai')}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-500 hover:text-neutral-300 transition-colors"
+                            >
+                              {showKeys['openai'] ? (
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                                </svg>
+                              ) : (
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Anthropic Key */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-neutral-300 flex items-center gap-1.5">
+                              Anthropic API Key
+                              {tempProvider === 'anthropic' && (
+                                <span className="text-[9px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-full border border-indigo-500/20 font-bold uppercase tracking-wide">Active</span>
+                              )}
+                            </span>
+                            <span className="text-[10px] text-neutral-500 flex items-center gap-1">
+                              <span className={`w-1.5 h-1.5 rounded-full ${tempAnthropicKey.trim() ? 'bg-emerald-500' : 'bg-neutral-600'}`}></span>
+                              {tempAnthropicKey.trim() ? 'Configured' : 'Not configured'}
+                            </span>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type={showKeys['anthropic'] ? 'text' : 'password'}
+                              value={tempAnthropicKey}
+                              onChange={e => setTempAnthropicKey(e.target.value)}
+                              placeholder="sk-ant-xxxxxxxxxxxxxxxxxxxx"
+                              className="w-full bg-[#131315] border border-neutral-700/80 focus:border-indigo-500 text-xs text-white rounded-lg pl-3 pr-10 py-2 focus:outline-none transition-all font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => toggleKeyVisibility('anthropic')}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-500 hover:text-neutral-300 transition-colors"
+                            >
+                              {showKeys['anthropic'] ? (
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                                </svg>
+                              ) : (
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Gemini Key */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-neutral-300 flex items-center gap-1.5">
+                              Google Gemini API Key
+                              {tempProvider === 'google' && (
+                                <span className="text-[9px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-full border border-indigo-500/20 font-bold uppercase tracking-wide">Active</span>
+                              )}
+                            </span>
+                            <span className="text-[10px] text-neutral-500 flex items-center gap-1">
+                              <span className={`w-1.5 h-1.5 rounded-full ${tempGeminiKey.trim() ? 'bg-emerald-500' : 'bg-neutral-600'}`}></span>
+                              {tempGeminiKey.trim() ? 'Configured' : 'Not configured'}
+                            </span>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type={showKeys['gemini'] ? 'text' : 'password'}
+                              value={tempGeminiKey}
+                              onChange={e => setTempGeminiKey(e.target.value)}
+                              placeholder="AIzaSyxxxxxxxxxxxxxxxxxxxx"
+                              className="w-full bg-[#131315] border border-neutral-700/80 focus:border-indigo-500 text-xs text-white rounded-lg pl-3 pr-10 py-2 focus:outline-none transition-all font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => toggleKeyVisibility('gemini')}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-500 hover:text-neutral-300 transition-colors"
+                            >
+                              {showKeys['gemini'] ? (
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                                </svg>
+                              ) : (
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* DeepSeek Key */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-neutral-300 flex items-center gap-1.5">
+                              DeepSeek API Key
+                              {tempProvider === 'deepseek' && (
+                                <span className="text-[9px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-full border border-indigo-500/20 font-bold uppercase tracking-wide">Active</span>
+                              )}
+                            </span>
+                            <span className="text-[10px] text-neutral-500 flex items-center gap-1">
+                              <span className={`w-1.5 h-1.5 rounded-full ${tempDeepseekKey.trim() ? 'bg-emerald-500' : 'bg-neutral-600'}`}></span>
+                              {tempDeepseekKey.trim() ? 'Configured' : 'Not configured'}
+                            </span>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type={showKeys['deepseek'] ? 'text' : 'password'}
+                              value={tempDeepseekKey}
+                              onChange={e => setTempDeepseekKey(e.target.value)}
+                              placeholder="ds-xxxxxxxxxxxxxxxxxxxx"
+                              className="w-full bg-[#131315] border border-neutral-700/80 focus:border-indigo-500 text-xs text-white rounded-lg pl-3 pr-10 py-2 focus:outline-none transition-all font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => toggleKeyVisibility('deepseek')}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-500 hover:text-neutral-300 transition-colors"
+                            >
+                              {showKeys['deepseek'] ? (
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                                </svg>
+                              ) : (
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                </div>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="p-4 border-t border-neutral-800/60 bg-[#0c0c0e]/80 flex justify-end gap-3 z-10 flex-shrink-0">
+                <button
+                  onClick={() => {
+                    setIsSettingsOpen(false);
+                    setTempToken(patToken);
+                    setTempProvider(selectedProvider);
+                    setTempModel(selectedModel);
+                    setTempOpenaiKey(openaiKey);
+                    setTempAnthropicKey(anthropicKey);
+                    setTempGeminiKey(geminiKey);
+                    setTempDeepseekKey(deepseekKey);
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-neutral-400 hover:text-white hover:bg-neutral-800/60 transition-all active:scale-[0.98]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveInitialSetup}
+                  disabled={!tempToken.trim()}
+                  className="px-5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white transition-all shadow-md active:scale-[0.98]"
+                >
+                  Save Settings
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -675,7 +965,7 @@ export default function Page() {
       {/* Sidebar Overlay (Mobile) */}
       {sidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black/40 z-20 md:hidden backdrop-blur-sm"
+          className="fixed inset-0 bg-black/55 z-20 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -683,10 +973,18 @@ export default function Page() {
       {/* Sidebar */}
       <div
         className={`${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-        } ${
-          sidebarOpen ? 'w-64' : 'w-0 md:w-64'
-        } absolute md:relative border-r border-neutral-800/60 bg-[#131315] flex flex-col transition-all duration-300 ease-in-out overflow-hidden z-30 h-full shrink-0`}
+          !mounted
+            ? 'w-0 -translate-x-full md:w-64 md:translate-x-0'
+            : sidebarOpen
+              ? 'w-64 translate-x-0'
+              : 'w-0 -translate-x-full'
+        } absolute md:relative border-neutral-800/60 bg-[#131315] flex flex-col transition-all duration-300 ease-in-out overflow-hidden z-30 h-full shrink-0 ${
+          !mounted
+            ? 'md:border-r'
+            : sidebarOpen
+              ? 'border-r'
+              : ''
+        }`}
       >
         {/* Sidebar Header */}
         <div className="p-3.5 flex items-center justify-between border-b border-neutral-800/40">
@@ -745,7 +1043,7 @@ export default function Page() {
       {/* Main Chat Container */}
       <div className="flex-1 flex flex-col overflow-hidden h-full bg-[#0a0a0c] relative z-10">
         {/* Navigation Bar */}
-        <header className="h-14 border-b border-neutral-800/40 flex items-center justify-between px-4 bg-[#0d0d0f]/80 backdrop-blur-md">
+        <header className="h-14 border-b border-neutral-800/40 flex items-center justify-between px-4 bg-[#0d0d0f]">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
