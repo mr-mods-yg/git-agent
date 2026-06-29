@@ -1,6 +1,6 @@
 'use client';
 
-import { useChat } from '@ai-sdk/react';
+import { useChat, type UIMessage } from '@ai-sdk/react';
 import { DefaultChatTransport, isToolUIPart } from 'ai';
 import { useState, useEffect, useRef, useMemo, memo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -57,7 +57,7 @@ const MODELS: Record<string, { id: string; name: string }[]> = {
 interface ChatSession {
   id: string;
   title: string;
-  messages: any[];
+  messages: UIMessage[];
   createdAt: number;
 }
 
