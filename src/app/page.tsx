@@ -323,26 +323,28 @@ export default function Page() {
 
   const handleDeleteSession = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    setSessions(prev => {
-      const updated = prev.filter(s => s.id !== id);
-      localStorage.setItem('github-agent:sessions', JSON.stringify(updated));
 
-      if (activeSessionId === id) {
-        if (updated.length > 0) {
-          setActiveSessionId(updated[0].id);
-          setMessages(updated[0].messages);
-          lastSavedStrRef.current = JSON.stringify(updated[0].messages);
-        } else {
-          const newId = Date.now().toString();
-          setActiveSessionId(newId);
-          setMessages([]);
-          lastSavedStrRef.current = '[]';
-        }
+    // Compute the next sessions list synchronously.
+    const updated = sessions.filter(s => s.id !== id);
+    localStorage.setItem('github-agent:sessions', JSON.stringify(updated));
+    setSessions(updated);
+
+    // Update active session if the deleted one was currently active.
+    // All setters are called at the top-level of the event handler (not inside
+    // another setter's updater) to avoid the React setState-during-render warning.
+    if (activeSessionId === id) {
+      if (updated.length > 0) {
+        setActiveSessionId(updated[0].id);
+        setMessages(updated[0].messages);
+        lastSavedStrRef.current = JSON.stringify(updated[0].messages);
+      } else {
+        const newId = Date.now().toString();
+        setActiveSessionId(newId);
+        setMessages([]);
+        lastSavedStrRef.current = '[]';
       }
-      return updated;
-    });
-  }, [activeSessionId, setMessages]);
+    }
+  }, [sessions, activeSessionId, setMessages]);
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();

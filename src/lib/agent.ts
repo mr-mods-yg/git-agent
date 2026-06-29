@@ -11,7 +11,7 @@ export async function createAgent(
   modelName: string,
   apiKey?: string
 ) {
-  const github_tools = (await getGithubTools(githubToken)).github_tools;
+  const { github_tools, github_mcp_client } = await getGithubTools(githubToken);
 
   let modelInstance;
   const keyToUse = apiKey && apiKey.trim() !== '' ? apiKey.trim() : undefined;
@@ -37,7 +37,7 @@ export async function createAgent(
       throw new Error(`Unsupported AI provider: ${provider}`);
   }
 
-  return new ToolLoopAgent({
+  const agent = new ToolLoopAgent({
     model: modelInstance,
     instructions: `You are a helpful github agent. 
 
@@ -50,9 +50,13 @@ export async function createAgent(
      - Combine language and time filters into one search query (e.g., 'language:typescript created:>=2026-06-27').
      - Sort by stars or updates in descending order to find the 'top' ones in a single request.
   4. Don't use many emojis in response.
-  5. If the user intent is malicious, deny the request politely.`,
+  5. If the user intent is malicious, deny the request politely.
+  6. Never use emojis in commit titles or commit descriptions. Keep them clean and professional.
+  7. Before modifying, editing, or creating files in a repository, always check the repository's file structure and existing code patterns to ensure your changes align with the project design and directory layout.`,
     tools: {
       ...github_tools
     },
   });
+
+  return { agent, github_mcp_client };
 }

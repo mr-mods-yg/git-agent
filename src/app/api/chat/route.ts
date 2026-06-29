@@ -17,13 +17,28 @@ export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
 
   try {
-    const agent = await createAgent(githubToken, provider, model, apiKey);
+    const { agent, github_mcp_client } = await createAgent(githubToken, provider, model, apiKey);
+
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      github_mcp_client.close().catch(console.error);
+    };
+
+    req.signal.addEventListener('abort', cleanup);
 
     const result = await agent.stream({
-      messages: await convertToModelMessages(messages),
+      messages: await convertToModelMessages(messages, {
+        ignoreIncompleteToolCalls: true,
+      }),
     });
 
-    return result.toUIMessageStreamResponse();
+    return result.toUIMessageStreamResponse({
+      onFinish: () => {
+        cleanup();
+      },
+    });
   } catch (error: any) {
     console.error("Agent initialization or execution failed:", error);
     return new Response(
